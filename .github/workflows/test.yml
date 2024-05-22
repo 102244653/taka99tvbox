@@ -1,31 +1,34 @@
-name: Test Build
+name: Upstream Sync
+
+permissions:
+    contents: write
 
 on:
-#  push:
-#    branches:
-#      - main
-#  pull_request:
-  workflow_dispatch:
+    schedule:
+        - cron: "0 0 * * *"
+    workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      - name: Build With Gradle
-        run: |
-          chmod +x gradlew
-          ./gradlew assemblerelease --build-cache --parallel --daemon --warning-mode all
-      - name: Prepare App
-        run: |
-          mkdir -p ${{ github.workspace }}/apk/
-          for file in `find ~ -name "*.apk" -print`; do
-            mv "$file" ${{ github.workspace }}/apk/
-          done
-      - name: Upload App To Artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: com.github.tvbox.osc
-          path: ${{ github.workspace }}/apk/*
+    sync_with_upstream:
+        name: Sync with Upstream
+        runs-on: ubuntu-latest
+        if: ${{ github.event.repository.fork }}
+
+        steps:
+            - name: Checkout target repo
+              uses: actions/checkout@v3
+
+            - name: Sync Upstream
+              uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
+              with:
+                  target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+                  upstream_sync_repo: HackJava/HackJava
+                  upstream_sync_branch: main
+                  target_sync_branch: main
+                  test_mode: false
+
+            - name: Check for Failure
+              if: failure()
+              run: |
+                  echo "[Error] Due to a change in the workflow file of the upstream repository, GitHub has automatically suspended the scheduled automatic update. You need to manually sync your fork."
+                  exit 1
